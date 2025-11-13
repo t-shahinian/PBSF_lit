@@ -1,0 +1,4 @@
+# Ignore data and results folders
+sim/data/
+sim/results/
+
