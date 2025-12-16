@@ -1,7 +1,19 @@
+### meeting: 1: address the ASKs
+### i didn't update the output, will do that as i clean up the rest of the code and see what is needed
+
 ### function in julia which does pre-calculation and pre-allocation
 
+### make p, q, n a function of x and y so we don't need to input it (make this funciton ahve as few inputs as possible)
+### add a check to make sure dimensions of x and y match (dimension mismatching check)
+## use spzeros instead of sparse when large matrix (stick with hwt dr zhang has, but keep this in mind)
+## make a clean version of the jupyter and keep the old one so i can compare
+## dimension checking, if we expect positive, but they put negative, put a warning
+
+# create new jupyter file with my updated code to replace the old one (just need to pull the original and start rewriting in there/replacing. keep the old one
+# for reference)
+
 ## i added p q and n beacuse they are specified in the .jld file. unsure if we want to get rid of that ASK
-function initialization(p,q,n,coords,X,Y,ϕ_sam,K; μβ=nothing,μΛ= nothing,VΛ=nothing,Vβ=nothing,aΣ=2,bΣ=nothing,m=10, N_sam = 20000)    # Assign defaults inside the function after knowing p, q, K
+function precalc_alloc_function(p,q,n,coords,X,Y,ϕ_sam,K; μβ=nothing,μΛ= nothing,VΛ=nothing,Vβ=nothing,aΣ=2,bΣ=nothing,m=10, N_sam = 20000)    # Assign defaults inside the function after knowing p, q, K
     # setting initial values if they aren't given
     if μβ === nothing
         μβ = fill(0.0, p, q)
@@ -117,11 +129,11 @@ function initialization(p,q,n,coords,X,Y,ϕ_sam,K; μβ=nothing,μΛ= nothing,V�
     bstar = fill(0.0, q); astar = aΣ + 0.5 * (n);
 
 # specifying what to return which will be used in future steps/functions
-    return (Y_ord=Y_ord,X_ord=X_ord,coords_ord=coords_ord,F_ord=F_ord,NN=NN)
+    return (Y_ord=Y_ord,X_ord=X_ord,coords_ord=coords_ord,F_ord=F_ord,NN=NN, K=K, q=q)
 end
 
 ## note: i didn't include these variables (becasue they weren't called in future code, but if we edit this code/make it more general we may need themF)
-    # inv_VΛ, inv_Vr, inv_Lr, inv_LΛ (these may be useful)
+    # inv_VΛ, inv_Vr, inv_Lr, inv_LΛ (these may be useful) -- seems these are useful only within this... i.e. it's used in xstar and ystar which will probably bne needed outside, but the actual lr might not but needed outside 
     # nIndx (these didn't seem to be useful//only need inside this function)
     # i stopped at nIndx (so continue searching after for what to put in return)
 
@@ -129,3 +141,49 @@ end
 # pre_calc_alloc =  initialization(p,q,n,coords,X,Y,ϕ_sam,K; μβ=fill(0.0, p, q),μΛ= fill(0.0, K, q),VΛ,Vβ,aΣ=2,bΣ=fill(1, q),m=10, N_sam = 20000)
 
 ## when i get home: clear the notebook. rerun oNLY my code (not the original precalculation and preallocaiotn), and see what i need to change to get the rest to run
+
+
+
+
+function initialization_function()
+    ## Initalization (some are optional) ##
+    β0 = (pre_calc_alloc.X_ord'pre_calc_alloc.X_ord)\(pre_calc_alloc.X_ord'pre_calc_alloc.Y_ord);
+    Residuals = pre_calc_alloc.Y_ord - pre_calc_alloc.X_ord*β0;
+    #γ_sam = vcat((X'X)\(X'Y), fill(0.0, K, q));
+    reordered_result = reorder_svd_by_spatial_range(Residuals, pre_calc_alloc.coords_ord, pre_calc_alloc.K, 1000, 11) # ?? do we want to change 1000 and 11? figure out
+    γ_sam = vcat((pre_calc_alloc.X_ord'pre_calc_alloc.X_ord)\(pre_calc_alloc.X_ord'pre_calc_alloc.Y_ord), reordered_result);
+    Σ_sam = [var(Residuals[:, j]) for j in 1:size(Residuals, 2)];
+
+    # force the initial column of F to start from the noisy factor 
+    #γ_sam = vcat((X'X)\(X'Y), Λ[[2, 1], :]);
+    #Σ_sam = [0.5, 1, 0.4, 2, 0.3, 2.5, 3.5, 0.45, 1.5, 0.5]; #fill(1.0, q);
+    return ()
+end
+
+
+
+
+function results(result_path::AbstractString)
+    # Ensure the directory exists
+    if !isdir(result_path)
+        mkpath(result_path)
+        println("Created directory: $result_path")
+    end
+
+    # Build full file paths
+    gamma_file = joinpath(result_path, "γ_sam.csv")
+    sigma_file = joinpath(result_path, "Σ_sam.csv")
+    F_file = joinpath(result_path, "F_sam.csv")
+
+    # Save initial zero data
+    writedlm(gamma_file, fill(0.0, 1, precalc_alloc_function.q), ", ")
+    writedlm(sigma_file, 0.0, ", ")
+    writedlm(F_file, fill(0.0, 1, precalc_alloc_function.K), ", ")
+
+    println("Files saved to: $result_path")
+end
+
+
+
+
+
