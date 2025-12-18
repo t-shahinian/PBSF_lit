@@ -1,3 +1,9 @@
+## MAYBE LATER: RENAME INTO SOMETHING BETTER BECAUSE THIS HOLDS ALL THE UTILS FOR THE SIMULATION CLEANUP
+
+
+#let precalc_alloc_function equal a variable called pre_calc_alloc_values so i can access it
+#let initialization_function equal a variable called initialization_values so i can access it 
+
 ### meeting: 1: address the ASKs
 ### i didn't update the output, will do that as i clean up the rest of the code and see what is needed
 
@@ -13,7 +19,19 @@
 # for reference)
 
 ## i added p q and n beacuse they are specified in the .jld file. unsure if we want to get rid of that ASK
-function precalc_alloc_function(p,q,n,coords,X,Y,ϕ_sam,K; μβ=nothing,μΛ= nothing,VΛ=nothing,Vβ=nothing,aΣ=2,bΣ=nothing,m=10, N_sam = 20000)    # Assign defaults inside the function after knowing p, q, K
+function precalc_alloc_function(coords,X,Y,ϕ_sam,K; μβ=nothing,μΛ= nothing,VΛ=nothing,Vβ=nothing,aΣ=2,bΣ=nothing,m=10, N_sam = 20000)    # Assign defaults inside the function after knowing p, q, K
+    # initializing n, p, q and dimension checking (only checked for n, see if there's a way to check p and q???)
+    n = size(X, 1)
+    p = size(X, 2)
+    q = size(Y, 2)
+
+    if size(Y, 1) != n
+        error("Dimension mismatch: X is $(size(X,1))×$(size(X,2)) but Y is $(size(Y,1))×$(size(Y,2)). Number of rows must match.")
+    end
+
+    # you can now safely use n, p, q
+    println("n = $n, p = $p, q = $q")
+    
     # setting initial values if they aren't given
     if μβ === nothing
         μβ = fill(0.0, p, q)
@@ -42,7 +60,7 @@ function precalc_alloc_function(p,q,n,coords,X,Y,ϕ_sam,K; μβ=nothing,μΛ= no
     Y_ord = Y[ordered_indices, :];
     X_ord = X[ordered_indices, :];
     coords_ord = coords[ordered_indices, :];
-    F_ord = F0[ordered_indices, :]; # not needed here, used in model comparison step?? maybe delete
+    # F_ord = F0[ordered_indices, :]; # not needed here, used in model comparison step?? maybe delete (commented out because not needed here)
 
     # 2.B: build nearest neighbor, might take some time 
     # ? m = 15
@@ -123,41 +141,31 @@ function precalc_alloc_function(p,q,n,coords,X,Y,ϕ_sam,K; μβ=nothing,μΛ= no
     Ystar = vcat(Y_ord, inv_Lr * μβ, fill(0.0, K, q)); # (NTotal+p+K) by q matrix
     Xstar = vcat(hcat(X_ord, F_sam), hcat(inv_Lr, spzeros(p, K)), hcat(spzeros(K, p), sparse(1:K, 1:K, 1.0)));
     μγstar = vcat(μβ, μΛ); #invVγstar = fill(0.0, p + K, p + K);
-    invVγstar = cholesky(sparse(I, p+K, p+K)); # doesn't fine in-place update for this 
+    invVγstar = cholesky(sparse(1.0I, p+K, p+K)); # doesn't fine in-place update for this (changed this to 1.0I)
     u = Array{Float64}(undef, (p + K) * q);  # Pre-allocate space for random samples;
     Y_Xm = spzeros(n + p + K, q); # store the residual
     bstar = fill(0.0, q); astar = aΣ + 0.5 * (n);
 
 # specifying what to return which will be used in future steps/functions
-    return (Y_ord=Y_ord,X_ord=X_ord,coords_ord=coords_ord,F_ord=F_ord,NN=NN, K=K, q=q)
+    return (Fqr=Fqr,F_m=F_m,F_sam=F_sam,NN.nnIndx=NN.nnIndx,NN.nnDist=NN.nnDist,NN.nnIndxLU=NN.nnIndxLU,μγstar=μγstar,invVγstar=invVγstar,u=u,astar=astar,bstar=bstar,Y_Xm=Y_Xm,bΣ=bΣ,Xstar=Xstar,Ystar=Ystar,v=v,D=D,I_A=I_A,nnIndx_row=nnIndx_row,nnIndx_col=nnIndx_col,Xtilde=Xtilde,Ytilde=Ytilde,A=A,D=D,Y_ord=Y_ord,X_ord=X_ord,coords_ord=coords_ord,NN=NN, K=K, n=n,p=p,q=q, inv_sqrt_Σ_diag=inv_sqrt_Σ_diag,invD_ele=invD_ele,invD=invD,ϕ_sam=ϕ_sam)
 end
 
-## note: i didn't include these variables (becasue they weren't called in future code, but if we edit this code/make it more general we may need themF)
-    # inv_VΛ, inv_Vr, inv_Lr, inv_LΛ (these may be useful) -- seems these are useful only within this... i.e. it's used in xstar and ystar which will probably bne needed outside, but the actual lr might not but needed outside 
-    # nIndx (these didn't seem to be useful//only need inside this function)
-    # i stopped at nIndx (so continue searching after for what to put in return)
-
-# storing returned values so we can use later. this may need to be updated depending on what we need (i put this in jupyter, but leaving here for this note)
-# pre_calc_alloc =  initialization(p,q,n,coords,X,Y,ϕ_sam,K; μβ=fill(0.0, p, q),μΛ= fill(0.0, K, q),VΛ,Vβ,aΣ=2,bΣ=fill(1, q),m=10, N_sam = 20000)
-
-## when i get home: clear the notebook. rerun oNLY my code (not the original precalculation and preallocaiotn), and see what i need to change to get the rest to run
+## add more to the above return as i find necessary
 
 
-
-
-function initialization_function()
+function initialization(pre_calc_alloc_values)
     ## Initalization (some are optional) ##
-    β0 = (pre_calc_alloc.X_ord'pre_calc_alloc.X_ord)\(pre_calc_alloc.X_ord'pre_calc_alloc.Y_ord);
-    Residuals = pre_calc_alloc.Y_ord - pre_calc_alloc.X_ord*β0;
+    β0 = (pre_calc_alloc_values.X_ord'pre_calc_alloc_values.X_ord)\(pre_calc_alloc_values.X_ord'pre_calc_alloc_values.Y_ord);
+    Residuals = pre_calc_alloc_values.Y_ord - pre_calc_alloc_values.X_ord*β0;
     #γ_sam = vcat((X'X)\(X'Y), fill(0.0, K, q));
-    reordered_result = reorder_svd_by_spatial_range(Residuals, pre_calc_alloc.coords_ord, pre_calc_alloc.K, 1000, 11) # ?? do we want to change 1000 and 11? figure out
-    γ_sam = vcat((pre_calc_alloc.X_ord'pre_calc_alloc.X_ord)\(pre_calc_alloc.X_ord'pre_calc_alloc.Y_ord), reordered_result);
+    reordered_result = reorder_svd_by_spatial_range(Residuals, pre_calc_alloc_values.coords_ord, pre_calc_alloc_values.K, 1000, 11) # ?? do we want to change 1000 and 11? figure out
+    γ_sam = vcat((pre_calc_alloc_values.X_ord'pre_calc_alloc_values.X_ord)\(pre_calc_alloc_values.X_ord'pre_calc_alloc_values.Y_ord), reordered_result);
     Σ_sam = [var(Residuals[:, j]) for j in 1:size(Residuals, 2)];
 
     # force the initial column of F to start from the noisy factor 
     #γ_sam = vcat((X'X)\(X'Y), Λ[[2, 1], :]);
     #Σ_sam = [0.5, 1, 0.4, 2, 0.3, 2.5, 3.5, 0.45, 1.5, 0.5]; #fill(1.0, q);
-    return ()
+    return (Σ_sam=Σ_sam, γ_sam=γ_sam)
 end
 
 
@@ -176,14 +184,134 @@ function results(result_path::AbstractString)
     F_file = joinpath(result_path, "F_sam.csv")
 
     # Save initial zero data
-    writedlm(gamma_file, fill(0.0, 1, precalc_alloc_function.q), ", ")
+    writedlm(gamma_file, fill(0.0, 1, pre_calc_alloc_values.q), ", ")
     writedlm(sigma_file, 0.0, ", ")
-    writedlm(F_file, fill(0.0, 1, precalc_alloc_function.K), ", ")
+    writedlm(F_file, fill(0.0, 1, pre_calc_alloc_values.K), ", ")
 
     println("Files saved to: $result_path")
 end
 
 
+# function for sampling f, function for sampling gamma and sigma, and then a function that wraps all of this chunk together
+function sample_f (pre_calc_alloc_values,initialization_values,l)
+        # Build the matrix D_Sigma_o^{1/2} #
+    # Compute inverse square root in-place
+    @. pre_calc_alloc_values.inv_sqrt_Σ_diag = 1 / sqrt(initialization_values.Σ_sam)
+    # Efficient broadcasting for invD_ele
+    pre_calc_alloc_values.invD_ele .= repeat(pre_calc_alloc_values.inv_sqrt_Σ_diag, inner=n)
+    # Update sparse matrices
+    pre_calc_alloc_values.invD = sparse(1:(pre_calc_alloc_values.n*pre_calc_alloc_values.q), 1:(pre_calc_alloc_values.n*pre_calc_alloc_values.q), pre_calc_alloc_values.invD_ele)
+    invΣhalf = sparse(1:pre_calc_alloc_values.q, 1:pre_calc_alloc_values.q, 1 ./ sqrt.(initialization_values.Σ_sam)) # ??? is this using the same inverse sigma as in preallocation? it doesn't seem like it
+    
+    if l == 1
+        for k in 1:pre_calc_alloc_values.K
+            getAD(pre_calc_alloc_values.coords_ord, pre_calc_alloc_values.NN.nnIndx, pre_calc_alloc_values.NN.nnDist, pre_calc_alloc_values.NN.nnIndxLU, pre_calc_alloc_values.ϕ_sam[k, l], 0.5, pre_calc_alloc_values.A[k], pre_calc_alloc_values.D[k]);
+            pre_calc_alloc_values.I_A[k] = sparse(pre_calc_alloc_values.nnIndx_row, pre_calc_alloc_values.nnIndx_col, vcat(-pre_calc_alloc_values.A[k], ones(pre_calc_alloc_values.n)));
+        end
+    end
+    pre_calc_alloc_values.Ytilde .= vcat(pre_calc_alloc_values.invD * vec(pre_calc_alloc_values.Y_ord - pre_calc_alloc_values.X_ord * initialization_values.γ_sam[1:p, :]), zeros(pre_calc_alloc_values.K * pre_calc_alloc_values.n));
+    pre_calc_alloc_values.Xtilde .= vcat(kron(invΣhalf * sparse(transpose(initialization_values.γ_sam[(pre_calc_alloc_values.p + 1):(pre_calc_alloc_values.p + pre_calc_alloc_values.K), :])), 
+                            sparse(1:pre_calc_alloc_values.n, 1:pre_calc_alloc_values.n, ones(pre_calc_alloc_values.n))),
+             blockdiag([Diagonal(1 ./ sqrt.(pre_calc_alloc_values.D[k])) * pre_calc_alloc_values.I_A[k] for k in 1:pre_calc_alloc_values.K]...));
+       
+    # use LSMR to generate sample of F # 
+    randn!(pre_calc_alloc_values.v)  # Fills v with standard normal samples
+    elapsed_time = @elapsed begin
+    pre_calc_alloc_values.F_sam .= reshape(lsmr(pre_calc_alloc_values.Xtilde, collect(pre_calc_alloc_values.Ytilde) + pre_calc_alloc_values.v), :, pre_calc_alloc_values.K);
+    end
+    
+    # Print the elapsed time
+    #println("Iteration $l: Time taken for lsmr step = $elapsed_time seconds")
+    
+    pre_calc_alloc_values.F_m .= mean(pre_calc_alloc_values.F_sam, dims = 1);
+    ProgressMeter.F_sam .-= pre_calc_alloc_values.F_m;
 
+    # Perform thin QR on the tall slice of F_sam in-place
+    pre_calc_alloc_values.Fqr = qr!(pre_calc_alloc_values.F_sam)  # Note the ! for in-place modification
+
+    # Assign scaled Q to F_samples
+    pre_calc_alloc_values.F_sam .= Matrix(pre_calc_alloc_values.Fqr.Q)
+    rmul!(pre_calc_alloc_values.F_sam, sqrt(pre_calc_alloc_values.n-1))   # scale in-place
+    return ()
+end
+
+
+
+
+
+
+function sample_gamma_sigma ()
+        
+    # one function here (sampling sig and gamma)
+    # Sample Σ and γ#
+    pre_calc_alloc_values.Xstar[1:pre_calc_alloc_values.n, (pre_calc_alloc_values.p+1):(pre_calc_alloc_values.p+pre_calc_alloc_values.K)] .= F_sam; # update Xstar with F_sam
+    
+    # use MNIW to sample γ Σ #
+    invVγstar = cholesky(pre_calc_alloc_values.Xstar'pre_calc_alloc_values.Xstar); # ??? does this use the original invVγstar in precalc alloc function? 
+    #mul!(μγstar, transpose(Xstar), Ystar); μγstar = invVγstar \ μγstar;
+    pre_calc_alloc_values.μγstar .= invVγstar \ (pre_calc_alloc_values.Xstar'pre_calc_alloc_values.Ystar); # ??? this one does use original from precalc prealloc
+    pre_calc_alloc_values.Y_Xm .= pre_calc_alloc_values.Ystar - pre_calc_alloc_values.Xstar * μγstar;      
+    pre_calc_alloc_values.bstar .= [pre_calc_alloc_values.bΣ[ind] + 0.5 * (norm(pre_calc_alloc_values.Y_Xm[:, ind])^2) for ind in 1:pre_calc_alloc_values.q]; 
+    initialization_values.Σ_sam .= [rand(InverseGamma(pre_calc_alloc_values.astar, pre_calc_alloc_values.bstar[ind]), 1)[1] for ind in 1:pre_calc_alloc_values.q];          # sample Σ
+    randn!(pre_calc_alloc_values.u)  # Fills u with standard normal samples
+    initialization_values.γ_sam .= (invVγstar.U \ reshape(pre_calc_alloc_values.u, (pre_calc_alloc_values.p + pre_calc_alloc_values.K), pre_calc_alloc_values.q)) * 
+                    Diagonal(sqrt.(initialization_values.Σ_sam)) + pre_calc_alloc_values.μγstar;          # sample γ 
+end
+
+
+
+
+
+function run_mcmc(precalc_alloc::NamedTuple, initialization::NamedTuple, N_sam::Int, result_path::AbstractString)
+    using DelimitedFiles, ProgressMeter, Random
+    
+    # Ensure the results directory exists
+    if !isdir(result_path)
+        mkpath(result_path)
+    end
+
+    # Initialize progress bar
+    prog = Progress(N_sam, 1, "Running MCMC...", 50)
+    
+    # Seed RNG for reproducibility
+    Random.seed!(11)
+
+    # Precompute file paths
+    f_file     = joinpath(result_path, "F_sam.csv")
+    sigma_file = joinpath(result_path, "Σ_sam.csv")
+    gamma_file = joinpath(result_path, "γ_sam.csv")
+
+    # Optionally, write headers or initial zeros
+    writedlm(f_file, fill(0.0, 1, precalc_alloc.K), ", ")
+    writedlm(sigma_file, fill(0.0, 1, precalc_alloc.q), ", ")
+    writedlm(gamma_file, fill(0.0, 1, precalc_alloc.q), ", ")
+
+    # Loop over MCMC iterations
+    for l in 1:N_sam
+        # 1️⃣ Sample F
+        F_result = sample_f(precalc_alloc, initialization, l)
+        F_sam = F_result.F_sam
+
+        # Append F_sam to CSV
+        open(f_file, "a") do io
+            writedlm(io, F_sam, ", ")
+        end
+
+        # 2️⃣ Sample γ and Σ
+        sample_gamma_sigma(precalc_alloc, initialization, F_sam)
+
+        # Append Σ_sam and γ_sam to CSV
+        open(sigma_file, "a") do io
+            writedlm(io, initialization_values.Σ_sam, ", ")
+        end
+
+        open(gamma_file, "a") do io
+            writedlm(io, initialization_values.γ_sam, ", ")
+        end
+
+        # Update progress
+        next!(prog)
+    end
+end
 
 
